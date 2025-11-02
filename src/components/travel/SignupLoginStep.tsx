@@ -1,5 +1,11 @@
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+import { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +20,13 @@ import {
   CheckCircle,
   AlertCircle,
 } from "lucide-react";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  loginUser,
+  signupUser,
+  selectAuth,
+} from "@/store/slices/authSlice";
+import { AppDispatch } from "@/store/store";
 
 interface AuthData {
   isAuthenticated: boolean;
@@ -37,10 +50,11 @@ interface ValidationErrors {
 
 export const SignupLoginStep = ({ onNext, onBack }: SignupLoginStepProps) => {
   const [activeTab, setActiveTab] = useState<"login" | "signup">("login");
-  const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<ValidationErrors>({});
   const { toast } = useToast();
+  const dispatch = useDispatch<AppDispatch>();
+  const { isLoading, error, user, token } = useSelector(selectAuth);
 
   // Login form
   const [loginEmail, setLoginEmail] = useState("");
@@ -50,6 +64,35 @@ export const SignupLoginStep = ({ onNext, onBack }: SignupLoginStepProps) => {
   const [signupName, setSignupName] = useState("");
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
+
+  useEffect(() => {
+    if (error) {
+      setErrors({ email: error });
+      toast({
+        title: "Authentication Failed",
+        description: error,
+        variant: "destructive",
+      });
+    }
+  }, [error, toast]);
+
+  useEffect(() => {
+    if (user && token) {
+      toast({
+        title: `Welcome ${activeTab === "login" ? "back" : ""}`,
+        description: `Logged in successfully as ${user.email}`,
+      });
+      const authData: AuthData = {
+        isAuthenticated: true,
+        user: {
+          email: user.email,
+          name: user.name,
+        },
+        isNewUser: activeTab === "signup",
+      };
+      onNext(authData);
+    }
+  }, [user, token, onNext, activeTab, toast]);
 
   const validateEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -89,71 +132,7 @@ export const SignupLoginStep = ({ onNext, onBack }: SignupLoginStepProps) => {
       return;
     }
 
-    setIsLoading(true);
-
-    try {
-      const res = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/auth/login`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email: loginEmail,
-            password: loginPassword,
-          }),
-        }
-      );
-
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        setErrors({ email: data.message || "Login failed" });
-        toast({
-          title: "Login Failed",
-          description: data.message || "Something went wrong",
-          variant: "destructive",
-        });
-      } else {
-        // Store user + token
-        localStorage.setItem(
-          "travel_current_user",
-          JSON.stringify({
-            ...data.user,
-            token: data.token,
-          })
-        );
-
-        localStorage.setItem("auth_token", data.token);
-
-        toast({
-          title: "Welcome back!",
-          description: `Logged in successfully as ${
-            data.user.display_name || data.user.email
-          }`,
-        });
-
-        const authData: AuthData = {
-          isAuthenticated: true,
-          user: {
-            email: data.user.email,
-            name: data.user.display_name || data.user.name,
-          },
-          isNewUser: false,
-        };
-
-        onNext(authData);
-      }
-    } catch (err) {
-      toast({
-        title: "Error",
-        description: "Unable to connect to server",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    dispatch(loginUser({ email: loginEmail, password: loginPassword }));
   };
 
   const handleSignup = async () => {
@@ -175,72 +154,15 @@ export const SignupLoginStep = ({ onNext, onBack }: SignupLoginStepProps) => {
       return;
     }
 
-    setIsLoading(true);
-
-    try {
-      const res = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL}/auth/signup`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            email: signupEmail,
-            password: signupPassword,
-
-            display_name: signupName,
-            first_name: signupName.split(" ")[0] || signupName,
-            last_name: signupName.split(" ").slice(1).join(" ") || "",
-          }),
-        }
-      );
-
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        setErrors({ email: data.message || "Signup failed" });
-        toast({
-          title: "Signup Failed",
-          description: data.message || "Something went wrong",
-          variant: "destructive",
-        });
-      } else {
-        // Store user + token
-        localStorage.setItem(
-          "travel_current_user",
-          JSON.stringify({
-            ...data.user,
-          })
-        );
-
-        localStorage.setItem("auth_token", data.token);
-
-        toast({
-          title: "Welcome to TravelPlanner!",
-          description: `Account created successfully for ${data.user.first_name}`,
-        });
-
-        const authData: AuthData = {
-          isAuthenticated: true,
-          user: {
-            email: data.user.email,
-            name: data.user.name,
-          },
-          isNewUser: true,
-        };
-
-        onNext(authData);
-      }
-    } catch (err) {
-      toast({
-        title: "Error",
-        description: "Unable to connect to server",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    dispatch(
+      signupUser({
+        email: signupEmail,
+        password: signupPassword,
+        display_name: signupName,
+        first_name: signupName.split(" ")[0] || signupName,
+        last_name: signupName.split(" ").slice(1).join(" ") || "",
+      })
+    );
   };
 
   return (
