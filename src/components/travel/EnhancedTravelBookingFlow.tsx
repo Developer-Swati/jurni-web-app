@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -9,9 +10,21 @@ import { EnhancedHotelsStep } from "./EnhancedHotelsStep";
 import { FlightsStep } from "./FlightsStep";
 import { SignupLoginStep } from "./SignupLoginStep";
 import { FinalItinerary } from "./FinalItinerary";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  updateLocationInfo,
+  updateBudgetDuration,
+  updateActivities,
+  updateDayPlans,
+  updateHotels,
+  updateFlights,
+  updateAuth,
+  resetTripData,
+  selectTripData,
+} from "@/store/slices/travelSlice";
 
 type Step =
-  | "location"
+  | "location" 
   | "budget-duration"
   | "activities"
   | "day-planner"
@@ -21,19 +34,10 @@ type Step =
   | "auth"
   | "auth_from_trip";
 
-interface TripData {
-  locationInfo?: any;
-  budgetDurationData?: any;
-  activitiesData?: any;
-  dayPlansData?: any;
-  hotelsData?: any;
-  flightsData?: any;
-  authData?: any;
-}
-
 export const EnhancedTravelBookingFlow = () => {
   const [currentStep, setCurrentStep] = useState<Step>("location");
-  const [tripData, setTripData] = useState<TripData>({});
+  const tripData = useSelector(selectTripData);
+  const dispatch = useDispatch();
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -57,17 +61,17 @@ export const EnhancedTravelBookingFlow = () => {
   };
 
   const handleLocationNext = (data: any) => {
-    setTripData({ ...tripData, locationInfo: data });
+    dispatch(updateLocationInfo(data));
     setCurrentStep("budget-duration");
   };
 
   const handleBudgetDurationNext = (data: any) => {
-    setTripData({ ...tripData, budgetDurationData: data });
+    dispatch(updateBudgetDuration(data));
     setCurrentStep("activities");
   };
 
   const handleActivitiesNext = (data: any) => {
-    setTripData({ ...tripData, activitiesData: data });
+    dispatch(updateActivities(data));
     setCurrentStep("day-planner");
   };
 
@@ -79,11 +83,8 @@ export const EnhancedTravelBookingFlow = () => {
         0
       ),
     };
-    setTripData({
-      ...tripData,
-      dayPlansData,
-      hotelsData: { hotels: data.hotels },
-    });
+    dispatch(updateDayPlans(dayPlansData));
+    dispatch(updateHotels({ hotels: data.hotels }));
     setCurrentStep("hotels");
   };
 
@@ -93,16 +94,14 @@ export const EnhancedTravelBookingFlow = () => {
     totalCost: number;
     flights: any[];
   }) => {
-    setTripData((prevTripData) => ({
-      ...prevTripData,
-      hotelsData: {
-        ...prevTripData.hotelsData,
+    dispatch(
+      updateHotels({
         selectedHotel: data.selectedHotel,
         skipHotel: data.skipHotel,
         totalCost: data.totalCost,
-      },
-      flightsData: { flights: data.flights },
-    }));
+      })
+    );
+    dispatch(updateFlights({ flights: data.flights }));
     setCurrentStep("flights");
   };
 
@@ -111,15 +110,13 @@ export const EnhancedTravelBookingFlow = () => {
     skipFlight: boolean;
     totalCost: number;
   }) => {
-    setTripData((prevTripData) => ({
-      ...prevTripData,
-      flightsData: {
-        ...prevTripData.flightsData,
+    dispatch(
+      updateFlights({
         selectedFlight: data.selectedFlight,
         skipFlight: data.skipFlight,
         totalCost: data.totalCost,
-      },
-    }));
+      })
+    );
     setCurrentStep("summary");
   };
 
@@ -218,12 +215,10 @@ export const EnhancedTravelBookingFlow = () => {
   };
 
   const handleAuthNext = (data: any) => {
-    const updatedTripData = { ...tripData, authData: data };
-    setTripData(updatedTripData);
+    dispatch(updateAuth(data));
     const authToken = localStorage.getItem("auth_token");
 
     if (currentStep == "auth_from_trip" && authToken) {
-      // createTrip(authToken);
       setCurrentStep("summary");
     } else {
       setCurrentStep("location");
@@ -344,7 +339,7 @@ export const EnhancedTravelBookingFlow = () => {
             onConfirm={handleSummaryNext}
             onStartOver={() => {
               setCurrentStep("location");
-              setTripData({});
+              dispatch(resetTripData());
             }}
           />
         );
